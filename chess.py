@@ -38,7 +38,7 @@ class Position:
 @dataclass
 class BoardPiece:
     piece: int
-    color: int
+    color: Color
     pos: Position
 
     def pawnAdvance(self):
@@ -70,9 +70,9 @@ class Board:
 
     def add(self, piece:Piece, color:Color, pos:Position):
         bp = BoardPiece(piece, color, pos)
-        self.add(bp)
+        self.addPiece(bp)
 
-    def add(self, piece:BoardPiece):
+    def addPiece(self, piece:BoardPiece):
         if piece in self.pieces:
             raise Exception(f"Piece {piece} already in board")
         self.pieces.append(piece)
@@ -175,20 +175,12 @@ class Board:
         return False
         
 
-    def possibleMoves(self, pos:Position):
+
+    def possibleMoves(self, piece:BoardPiece):
         """ Where could the piece at 'pos' move to?
             In the case of a king, it will only return squares
             that are not threatened by the other color
             """
-        # if not valid or empty, then no moves are possible
-        if not self.hasPiece(pos):
-            return []
-
-        piece = self.get(pos)
-        return self.possibleMoves(piece)
-
-
-    def possibleMoves(self, piece:BoardPiece):
         moves = []
         match piece.piece:
             case Piece.Pawn: # Pawn
@@ -222,26 +214,26 @@ class Board:
                         moves.append(c)
 
                 # Restore the king to is position
-                self.add(piece)
+                self.addPiece(piece)
 
         # Create proper Move from the resulting posinates
         return list(map(lambda m: Move(piece.pos, m), moves))
 
 
-    def allPiecesFrom(self, color:Color):
+    def allPiecesFrom(self, color:Color) -> List[BoardPiece]:
         return [p for p in self.pieces if p.color is color]
 
 
-    def isCheckMated(self, color:Color):
+    def isCheckMated(self, color:Color) -> bool:
         king = self.getKing(color)
         return king is not None and self.isThreatened(king.pos, king.color.other()) and not self.possibleMoves(king)
 
 
     def isChecked(self, color:Color):
-        return self.isChecked(self.getKing(color))
+        return self.isKingChecked(self.getKing(color))
 
 
-    def isChecked(self, king:BoardPiece):
+    def isKingChecked(self, king:BoardPiece):
         return king is not None and self.isThreatened(king.pos, king.color.other()) 
 
 
@@ -265,7 +257,7 @@ class Board:
         newBoard = Board(self.size)
         for piece in self.pieces:
             np = BoardPiece(piece.piece, piece.color, piece.pos)
-            newBoard.add(np)
+            newBoard.addPiece(np)
 
         return newBoard
 
