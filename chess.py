@@ -153,22 +153,25 @@ class Board:
         # Check pawns
         pawnPreviousRow = pos.below() if color == Color.White else pos.above()
         for pp in [pawnPreviousRow.left(), pawnPreviousRow.right()]:
-            bp = self.get(pp)
-            if bp and bp.piece is Piece.Pawn and bp.color is color:
-                return True
+            if self.validPos(pp):
+                bp = self.get(pp)
+                if bp and bp.piece is Piece.Pawn and bp.color is color:
+                    return True
 
         # Check Rooks
         for moveFunction in [lambda x:x.left(), lambda x:x.right(), lambda x:x.above(), lambda x:x.below()]:
             current = moveFunction(pos)
             while self.validPos(current) and self.isEmpty(current):
                 current = moveFunction(current)
-            bp = self.get(pp)
-            if bp and bp.piece is Piece.Rook and bp.color is color:
-                return True
+
+            if self.validPos(current):
+                bp = self.get(current)
+                if bp and bp.piece is Piece.Rook and bp.color is color:
+                    return True
 
         # Check King
         for c in self.validSurroundings(pos):
-            bp = self.get(pp)
+            bp = self.get(c)
             if bp and bp.piece is Piece.King and bp.color is color:
                 return True
 

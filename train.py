@@ -32,4 +32,14 @@ env = rl.Environment(board)
 
 print(f"All possible current moves for white: {list(env.getAllPossibleActions())}")
 
+color = Color.White
+print(env.board)
+while not env.isEndState():
+    actions = env.getAllPossibleActions(color)
+    if not actions:
+        break
+    env.execute(random.choice(actions))
+    print(env.board)
+    color = color.other()
+
 exit()
