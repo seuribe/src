@@ -1,41 +1,37 @@
 import random
 
-import chess
-import rl
+from chess import Color, Piece, BoardPiece, Board, Move, Position
+#import rl
 
-WHITE_PAWN_POS = (3,3)
-WHITE_ROOK_POS = (3,1)
-BLACK_PAWN_POS = (1,3)
-BLACK_KING_POS = (0,3)
+WHITE_PAWN_POS = Position(3,3)
+WHITE_ROOK_POS = Position(3,1)
+BLACK_PAWN_POS = Position(1,3)
+BLACK_KING_POS = Position(0,3)
 
-board = chess.Board(4)
-board.set(WHITE_PAWN_POS, chess.Piece(chess.PAWN, chess.WHITE))
-board.set(WHITE_ROOK_POS, chess.Piece(chess.ROOK, chess.WHITE))
-board.set(BLACK_PAWN_POS, chess.Piece(chess.PAWN, chess.BLACK))
-board.set(BLACK_KING_POS, chess.Piece(chess.KING, chess.BLACK))
-board.print()
+board = Board(4)
+whitePawn = BoardPiece(Piece.Pawn, Color.White, WHITE_PAWN_POS)
+whiteRook = BoardPiece(Piece.Rook, Color.White, WHITE_ROOK_POS)
+blackPawn = BoardPiece(Piece.Pawn, Color.Black, BLACK_PAWN_POS)
+blackKing = BoardPiece(Piece.King, Color.Black, BLACK_KING_POS)
+board.add(whitePawn)
+board.add(whiteRook)
+board.add(blackPawn)
+board.add(blackKing)
+print(board)
 
 nb = board.clone()
-nb.print()
+print(nb)
 
-print(list(board.allPiecesFrom(chess.WHITE)))
-print(list(board.allPiecesFrom(chess.BLACK)))
-print(f"Possible moves for the white pawn: {list(board.possibleMoves(WHITE_PAWN_POS))}")
-print(f"Possible moves for the black pawn: {list(board.possibleMoves(BLACK_PAWN_POS))}")
+print(f"All white pieces: {board.allPiecesFrom(Color.White)}")
+print(f"All black pieces: {board.allPiecesFrom(Color.Black)}")
+
+print(f"Possible moves for the white pawn: {list(board.possibleMoves(whitePawn))}")
+print(f"Possible moves for the black pawn: {list(board.possibleMoves(blackPawn))}")
+
+exit()
+
+
 
 env = rl.Environment(board)
 
 print(f"All possible current moves for white: {list(env.getAllPossibleActions())}")
-
-
-n = 20
-color = chess.WHITE
-while not env.isEndState() and n > 0:
-    moves = env.getAllPossibleActions(color)
-    if moves:
-        move = random.choice(moves)
-        print (move)
-        board.move(move)
-        board.print()
-    color = chess.otherColor(color)
-    n = n - 1

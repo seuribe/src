@@ -1,170 +1,208 @@
+from typing import List
+from enum import Enum
+from dataclasses import dataclass
+
 EMPTY  = 0
-PAWN   = 1
-BISHOP = 2
-KNIGHT = 3
-ROOK   = 4
-QUEEN  = 5
-KING   = 6
 
-WHITE  = 0
-BLACK  = 7
+class Color(Enum):
+    White = 0
+    Black = 7
+    def other(self):
+        return self.Black if self == self.White else self.White
 
-def otherColor(color):
-    return BLACK if color == WHITE else WHITE
+class Piece(Enum):
+    Empty  = 0
+    Pawn   = 1
+    Bishop = 2
+    Knight = 3
+    Rook   = 4
+    Queen  = 5
+    King   = 6
 
-def pieceStr(piece):
-    return ["(none)", "Pawn", "Bishop", "Knight", "Rook", "Queen", "King"][piece]
+@dataclass
+class Position:
+    row: int
+    col: int
+    def above(self):
+        return Position(row=self.row-1, col=self.col)
 
-def colorStr(color):
-    return "White" if color == WHITE else "Black"
+    def below(self):
+        return Position(row=self.row+1, col=self.col)
 
-class Piece:
-    def __init__(self, piece, color):
-        self.piece = piece
-        self.color = color
+    def left(self):
+        return Position(row=self.row, col=self.col-1)
 
-    def isA(self, piece, color):
-        return self.piece == piece and self.color == color
-    
-    def __str__(self):
-        return f"{colorStr(self.color)} {pieceStr(self.piece)}"
-    def __repr__(self):
-        return self.__str__()    
+    def right(self):
+        return Position(row=self.row, col=self.col+1)
 
-def above(pos):
-    return (pos[0]-1, pos[1])
+@dataclass
+class BoardPiece:
+    piece: int
+    color: int
+    pos: Position
 
-def below(pos):
-    return (pos[0]+1, pos[1])
+    def pawnAdvance(self):
+        return self.pos.above() if self.color == Color.White else self.pos.below()
+    def pawnEatMoves(self):
+        advance = self.pawnAdvance()
+        return [advance.left(), advance.right()]
+    def rookMoveFunctions(self):
+        return [lambda x:x.left(), lambda x:x.right(), lambda x:x.above(), lambda x:x.below()]
 
-def left(pos):
-    return (pos[0], pos[1]-1)
-
-def right(pos):
-    return (pos[0], pos[1]+1)
+@dataclass
+class Move:
+    orig:Position
+    dest:Position
 
 class Board:
-    def __init__(self, size):
+    pieces: List[BoardPiece] = []
+
+    def __init__(self, size:int):
         self.size = size
-        self.board = [[EMPTY] * self.size for _ in range(self.size)]
-        self.clear()
-
-    def set(self, pos, piece):
-        self.board[pos[0]][pos[1]] = piece
-
-    def get(self, pos):
-        return self.board[pos[0]][pos[1]]
-
-    def move(self, move):
-        piece = self.board[move._from[0]][move._from[1]]
-        self.board[move._from[0]][move._from[1]] = EMPTY
-        self.board[move._to[0]][move._to[1]] = piece
-
-    def find(self, piece):
-        rowIndex = 0
-        for row in self.board:
-            colIndex = 0
-            for square in row:
-                c = (rowIndex, colIndex)
-                if self.hasPiece(c) and piece.isA(square.piece, square.color):
-                    return (rowIndex, colIndex)
-                colIndex = colIndex + 1
-            rowIndex = rowIndex + 1
+        self.clear() # initialize board and pieces
 
     def clear(self):
         self.board = [[EMPTY] * self.size for _ in range(self.size)]
+        self.pieces = []
 
-    def validPos(self, pos):
-        return type(pos) is tuple and len(pos) == 2 and pos[0] >= 0 and pos[0] < self.size and pos[1] >= 0 and pos[1] < self.size
+    def get(self, pos:Position):
+        return self.board[pos.row][pos.col]
 
-    def isEmpty(self, pos):
+    def add(self, piece:Piece, color:Color, pos:Position):
+        bp = BoardPiece(piece, color, pos)
+        self.add(bp)
+
+    def add(self, piece:BoardPiece):
+        if piece in self.pieces:
+            raise Exception(f"Piece {piece} already in board")
+        self.pieces.append(piece)
+        self.board[piece.pos.row][piece.pos.col] = piece
+
+    def isEmpty(self, pos:Position):
         return self.get(pos) == EMPTY
 
-    def print(self):
-        PIECES = "·♙♗♘♖♕♔·♟♝♞♜♛♚"
-        print("+----+")
-        for row in self.board:
-            print("|", end='')
-            for piece in row:
-                index = 0 if piece == 0 else piece.piece
-                print(PIECES[index], end='')
-            print("|")
-        print("+----+")
+    def remove(self, pos:Position):
+        piece = self.get(pos)
+        if piece:
+            self.pieces.remove(piece)
+            self.board[piece.pos.row][piece.pos.col] = EMPTY
 
-    def validDest(self, pos):
+    def move(self, move:Move):
+        """ Will remove any piece at the destination, WITHOUT checking if the move or eat is valid """
+        bPiece = self.get(move.orig)
+        if not bPiece:
+            return
+        self.remove(move.orig)
+        self.remove(move.dest)
+        self.add(bPiece.piece, bPiece.color, move.dest)
+
+
+    def getKing(self, color:Color):
+        """ returns None if there is no king of that color """
+        for bp in self.pieces:
+            if bp.piece is Piece.King and bp.color is color:
+                return bp
+        return None
+
+
+    def validPos(self, pos:Position):
+        return 0 <= pos.row < self.size and 0 <= pos.col < self.size
+
+
+    def __str__(self):
+        PIECES = "·♙♗♘♖♕♔·♟♝♞♜♛♚"
+        str = "+----+\n"
+        for row in self.board:
+            str = str + "|"
+            for piece in row:
+                index = 0 if piece == 0 else piece.piece.value + piece.color.value
+                str = str + PIECES[index]
+            str = str + "|\n"
+        str = str + "+----+"
+        return str
+
+
+    def validDest(self, pos:Position):
         """ Is 'pos' a square where a piece can move to? (valid and empty) """
         return self.validPos(pos) and self.isEmpty(pos)
 
-    def validEat(self, pos, piece):
-        """ Is there a piece at 'pos', that 'piece' can eat? """
-        return self.validPos(pos) and not self.isEmpty(pos) and self.get(pos).color != piece.color and self.get(pos).piece != KING
 
-    def hasPiece(self, pos):
+    def validEat(self, pos:Position, piece:BoardPiece):
+        """ Is there a piece at 'pos', that 'piece' can eat? """
+        return self.validPos(pos) and not self.isEmpty(pos) and self.get(pos).color != piece.color and self.get(pos).piece != Piece.King
+
+
+    def hasPiece(self, pos:Position):
         """ Is there _any_ piece in this pos? """
         return self.validPos(pos) and not self.isEmpty(pos)
     
-    def validSurroundings(self, pos):
-        potential = [left(above(pos)), above(pos), right(above(pos)),
-                     left(pos),                             right(pos),
-                     left(below(pos)), below(pos), right(below(pos))]
+
+    def validSurroundings(self, pos:Position):
+        ab = pos.above()
+        be = pos.below()
+        potential = [ab.left(), ab, ab.right(),
+                    pos.left(),    pos.right(),
+                     be.left(), be, be.right()]
 
         return list(filter(self.validPos, potential))
   
-    def isThreatened(self, pos, color):
-        """ Is this posinate threatened by a piece of color 'color'? """
+
+    def isThreatened(self, pos:Position, color:Color):
+        """ Is this position threatened by a piece of color 'color'? """
 
         # Check pawns
-        pawnPreviousRow = below(pos) if color == WHITE else above(pos)
-        for pp in [left(pawnPreviousRow), right(pawnPreviousRow)]:
-            if self.hasPiece(pp) and self.get(pp).isA(PAWN, color):
+        pawnPreviousRow = pos.below() if color == Color.White else pos.above()
+        for pp in [pawnPreviousRow.left(), pawnPreviousRow.right()]:
+            bp = self.get(pp)
+            if bp and bp.piece is Piece.Pawn and bp.color is color:
                 return True
 
         # Check Rooks
-        for moveFunction in [left, right, above, below]:
+        for moveFunction in [lambda x:x.left(), lambda x:x.right(), lambda x:x.above(), lambda x:x.below()]:
             current = moveFunction(pos)
             while self.validPos(current) and self.isEmpty(current):
                 current = moveFunction(current)
-
-            if self.hasPiece(current) and self.get(current).isA(ROOK, color):
+            bp = self.get(pp)
+            if bp and bp.piece is Piece.Rook and bp.color is color:
                 return True
 
         # Check King
         for c in self.validSurroundings(pos):
-            if self.hasPiece(c) and self.get(c).isA(KING, color):
+            bp = self.get(pp)
+            if bp and bp.piece is Piece.King and bp.color is color:
                 return True
 
         return False
+        
 
-    def possibleMoves(self, pos):
+    def possibleMoves(self, pos:Position):
         """ Where could the piece at 'pos' move to?
             In the case of a king, it will only return squares
             that are not threatened by the other color
             """
-        # initialize the array with potential moves
-        moves = []
-
         # if not valid or empty, then no moves are possible
         if not self.hasPiece(pos):
-            return moves
+            return []
 
         piece = self.get(pos)
+        return self.possibleMoves(piece)
 
+
+    def possibleMoves(self, piece:BoardPiece):
+        moves = []
         match piece.piece:
-            case 1: # Pawn
-                # the basic move to advance one cell
-                advance = above(pos) if piece.color == WHITE else below(pos)
+            case Piece.Pawn: # Pawn
+                advance = piece.pawnAdvance()
                 if (self.validDest(advance)):
                     moves.append(advance)
 
-                # eat
-                for eat_move in [left(advance), right(advance)]:
+                for eat_move in piece.pawnEatMoves():
                     if self.validEat(eat_move, piece):
                         moves.append(eat_move)
 
-            case 4: # Rook
-                moveFunctions = [left, right, above, below]
-                for moveFunction in moveFunctions:
-                    current = moveFunction(pos)
+            case Piece.Rook: # Rook
+                for moveFunction in piece.rookMoveFunctions():
+                    current = moveFunction(piece.pos)
                     # move
                     while self.validDest(current):
                         moves.append(current)
@@ -174,50 +212,45 @@ class Board:
                     if self.validEat(current, piece):
                         moves.append(current)
 
-            case 6: # King
+            case Piece.King: # King
                 # Temporarily remove the king from its current position so that it doesn't block potential threats
-                self.set(pos, EMPTY)
+                self.remove(piece.pos)
 
-                potential = [left(above(pos)), above(pos), right(above(pos)),
-                    left(pos), right(pos),
-                    left(below(pos)), below(pos), right(below(pos))]
-                
-
+                potential = self.validSurroundings(piece.pos)
                 for c in potential:
-                    if not self.isThreatened(c, otherColor(piece)) and (self.validEat(c, piece) or self.validDest(c)):
+                    if not self.isThreatened(c, piece.color.other()) and (self.validEat(c, piece) or self.validDest(c)):
                         moves.append(c)
 
                 # Restore the king to is position
-                self.set(pos, piece)
+                self.add(piece)
 
         # Create proper Move from the resulting posinates
-        return list(map(lambda m: Move(pos, m), moves))
+        return list(map(lambda m: Move(piece.pos, m), moves))
 
-    def allPiecesFrom(self, color):
-        """ Returns an iterator of tuples (row, column, piece) """
-        rowIndex = 0
-        for row in self.board:
-            colIndex = 0
-            for piece in row:
-                if piece is not 0 and piece.color == color:
-                    yield (rowIndex, colIndex, piece)
-                colIndex = colIndex + 1
-            rowIndex = rowIndex + 1
 
-    def isCheckMated(self, color):
-        kingPos = self.find(Piece(KING, color))
-        return self.isThreatened(kingPos, otherColor(color)) and not self.possibleMoves(kingPos)
+    def allPiecesFrom(self, color:Color):
+        return [p for p in self.pieces if p.color is color]
 
-    def isChecked(self, color):
-        kingPos = self.find(Piece(KING, color))
-        return self.isThreatened(kingPos, otherColor(color)) 
 
-    def getAllMovesFor(self, color):
-        """ if the king is checked, then the only possible moves are those that un-check him """
+    def isCheckMated(self, color:Color):
+        king = self.getKing(color)
+        return king is not None and self.isThreatened(king.pos, king.color.other()) and not self.possibleMoves(king)
+
+
+    def isChecked(self, color:Color):
+        return self.isChecked(self.getKing(color))
+
+
+    def isChecked(self, king:BoardPiece):
+        return king is not None and self.isThreatened(king.pos, king.color.other()) 
+
+
+    def getAllMovesFor(self, color:Color):
         moves = []
-        for (row, col, _) in self.allPiecesFrom(color):
-            moves = moves + self.possibleMoves((row, col))
+        for piece in self.allPiecesFrom(color):
+            moves = moves + self.possibleMoves(piece)
 
+        # Return only moves where the king is not checked
         validMoves = []
         for move in moves:
             b = self.cloneMove(move)
@@ -226,35 +259,19 @@ class Board:
 
         return validMoves
 
+
     def clone(self):
+        """ Return a clone of the board """
         newBoard = Board(self.size)
-        for (pos, piece) in self.iter():
-            newBoard.set(pos, piece)
+        for piece in self.pieces:
+            np = BoardPiece(piece.piece, piece.color, piece.pos)
+            newBoard.add(np)
+
         return newBoard
 
-    def cloneMove(self, move):
+
+    def cloneMove(self, move:Move):
+        """ Return a clone of the board where the move 'move' has been played """
         newBoard = self.clone()
         newBoard.move(move)
         return newBoard
-
-    def iter(self):
-        rowIndex = 0
-        for row in self.board:
-            colIndex = 0
-            for square in row:
-                c = (rowIndex, colIndex)
-                yield (c, square)
-                colIndex = colIndex + 1
-            rowIndex = rowIndex + 1
-
-
-class Move:
-    def __init__(self, _from, _to):
-        self._from = _from
-        self._to = _to
-    
-    def __str__(self):
-        return f"({self._from}, {self._to})"
-
-    def __repr__(self):
-        return self.__str__()    
