@@ -15,20 +15,22 @@ def encodeBoard(board:Board):
     return data
 
 
+@dataclass
 class State:
     board:Board
     encoding:List[int]
     def __init__(self, board:Board):
-        self.board = board
+        self.board = board.clone()
         self.encoding = encodeBoard(self.board)
 
     def __hash__(self):
-        value = 0
+        value = 7
         for e in self.encoding:
-            value = value + e * 13
+            value = (value * 31) + e
         return value
 
 
+@dataclass
 class Action:
     move:Move
     encoding:int
@@ -60,6 +62,10 @@ class Environment:
 
     def execute(self, action:Action):
         self.board.move(action.move)
+        if self.board.isCheckMated(Color.Black):
+            return 1
+        elif not self.getAllPossibleActions(Color.White):
+            return -1
         return 0
     
     def getState(self) -> State:
@@ -84,6 +90,8 @@ class QLearning:
         
         def setExpectedReward(self, action:Action, reward):
             self.actions[action] = reward
+            if not self.maxAction or reward > self.actions[self.maxAction]:
+                self.maxAction = action
 
     def __init__(self, learningRate = 0.9, discountRate = 0.5):
         self.learningRate = learningRate
