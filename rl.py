@@ -22,7 +22,7 @@ class Environment:
             * White wins (black king is check-mated)
             * White loses (has no more pieces left)
         """
-        return self.board.isCheckMated(Color.Black) or not self.board.allPiecesFrom(Color.White)
+        return self.board.isCheckMated(Color.Black) or not self.getAllPossibleActions(Color.White)
 
     def getAllPossibleActions(self, color:Color = Color.White) -> List[Action]:
         allMoves = self.board.getAllMovesFor(color)
