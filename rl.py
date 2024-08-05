@@ -115,11 +115,11 @@ class Episode:
         self.qLearning = qLearning
         self.policy = Policy(env, qLearning, exploitRate)
 
-    def step(self, maxSteps = 100):
+    def step(self, maxSteps = 100, onStepStart = lambda:None, onStepEnd = lambda:None):
         steps = 0
         while steps < maxSteps and not self.env.isEndState():
             steps = steps + 1
-            
+            onStepStart()
             oldState = self.env.getState()
             action = self.policy.pickAction()
             if not action:
@@ -127,6 +127,7 @@ class Episode:
             reward = self.env.execute(action)
             newState = self.env.getState()
             self.qLearning.update(oldState, action, newState, reward)
+            onStepEnd()
 
         return steps
         
