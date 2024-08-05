@@ -34,10 +34,13 @@ class Position:
 
     def right(self):
         return Position(row=self.row, col=self.col+1)
+    
+    def __hash__(self):
+        return hash((self.row, self.col))
 
 @dataclass
 class BoardPiece:
-    piece: int
+    piece: Piece
     color: Color
     pos: Position
 
@@ -77,6 +80,8 @@ class Board:
             raise Exception(f"Piece {piece} already in board")
         self.pieces.append(piece)
         self.board[piece.pos.row][piece.pos.col] = piece
+        # keep pieces always sorted
+        self.pieces.sort(key=lambda p:p.piece.value * 1000 + p.color.value * 100 + p.pos.row * 10 + p.pos.col)
 
     def isEmpty(self, pos:Position):
         return self.get(pos) == EMPTY
