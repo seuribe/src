@@ -2,20 +2,49 @@ import random
 from chess import *
 
 
-@dataclass
+def encodeMove(move:Move):
+    return move.orig.row  + move.orig.col << 3 + move.dest.row << 6 + move.dest.col << 12
+
+def encodePiece(piece:BoardPiece):
+    return piece.piece.value + piece.color.value + piece.pos.row << 16 + piece.pos.col << 24
+
+def encodeBoard(board:Board):
+    data = []
+    for piece in board.pieces:
+        data.append(encodePiece(piece))
+    return data
+
+
 class State:
     board:Board
+    encoding:List[int]
+    def __init__(self, board:Board):
+        self.board = board
+        self.encoding = encodeBoard(self.board)
+
+    def __hash__(self):
+        value = 0
+        for e in self.encoding:
+            value = value + e * 13
+        return value
 
 
-@dataclass
 class Action:
     move:Move
+    encoding:int
+    def __init__(self, move:Move):
+        self.move = move
+        self.encoding = encodeMove(self.move)
+
+    def __hash__(self):
+        return hash((self.move.orig, self.move.dest))
 
 
 class Environment:
     board:Board
-    def __init__(self, board):
+    def __init__(self, board, encodeFunc = lambda x:x):
         self.board = board
+        self.encodeFunc = encodeFunc
 
     def isEndState(self):
         """ It's an end state if:
@@ -37,8 +66,7 @@ class Environment:
         return self.encode(self.board)
     
     def encode(self, board:Board):
-        return State(board=board)
-
+        return State(board)   
 
 class QLearning:
 
