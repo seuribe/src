@@ -19,27 +19,21 @@ board.addPiece(blackPawn)
 board.addPiece(blackKing)
 print(board)
 
-nb = board.clone()
-print(nb)
-
-print(f"All white pieces: {board.allPiecesFrom(Color.White)}")
-print(f"All black pieces: {board.allPiecesFrom(Color.Black)}")
-
-print(f"Possible moves for the white pawn: {list(board.possibleMoves(whitePawn))}")
-print(f"Possible moves for the black pawn: {list(board.possibleMoves(blackPawn))}")
-
 env = rl.Environment(board)
 
-print(f"All possible current moves for white: {list(env.getAllPossibleActions())}")
+qLearning = rl.QLearning()
+episode = rl.Episode(env, qLearning, 0.5)
 
-color = Color.White
-print(env.board)
-while not env.isEndState():
-    actions = env.getAllPossibleActions(color)
-    if not actions:
-        break
-    env.execute(random.choice(actions))
-    print(env.board)
-    color = color.other()
+def onStepEnd():
+    """ Black plays a random (valid) move """
+    actions = env.getAllPossibleActions(Color.Black)
+    if actions:
+        env.execute(random.choice(actions))
 
-exit()
+
+steps = episode.step(100, onStepEnd=onStepEnd)
+print(f"Board state after {steps} steps:")
+print(board)
+print(f"End State: {env.isEndState()}")
+print(f"Black checkmated: {board.isCheckMated(Color.Black)}")
+print(f"Number of states: {len(qLearning.sas)}")
