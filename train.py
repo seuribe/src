@@ -1,7 +1,7 @@
 import random
 
 from chess import Color, Piece, BoardPiece, Board, Move, Position
-import rl
+from rl import *
 
 WHITE_PAWN_POS = Position(3,3)
 WHITE_ROOK_POS = Position(3,1)
@@ -19,10 +19,10 @@ board.addPiece(blackPawn)
 board.addPiece(blackKing)
 print(board)
 
-env = rl.Environment(board)
+env = Environment(board)
 
-qLearning = rl.QLearning()
-episode = rl.Episode(env, qLearning, 0.5)
+qLearning = QLearning()
+episode = Episode(env, qLearning, 0.5)
 
 def onStepEnd():
     """ Black plays a random (valid) move """
@@ -37,3 +37,12 @@ print(board)
 print(f"End State: {env.isEndState()}")
 print(f"Black checkmated: {board.isCheckMated(Color.Black)}")
 print(f"Number of states: {len(qLearning.sas)}")
+
+def dumpStateActions(qLearning:QLearning):
+    for (state, stateAction) in qLearning.sas.items():
+        print (state.board)
+        print (f"Max action: {stateAction.maxAction}")
+        for (action, value) in stateAction.actions.items():
+            print (f"Action {action.move} -> {value}")  
+
+dumpStateActions(qLearning)
