@@ -1,7 +1,10 @@
+from multiprocessing import Pool
+from tqdm import tqdm
 import random
 
 from chess import Color, Piece, BoardPiece, Board, Move, Position
 from rl import *
+from chessrl import *
 
 WHITE_PAWN_POS = Position(3,3)
 WHITE_ROOK_POS = Position(3,1)
@@ -19,30 +22,65 @@ board.addPiece(blackPawn)
 board.addPiece(blackKing)
 print(board)
 
-env = Environment(board)
+def onStepEnd(env):
+    """ Black plays a random (valid) move """
+    if not env.isEndState():
+        actions = env.getState().getAllPossibleActionsFor(Color.Black)
+        if actions:
+            env.execute(random.choice(actions))
 
 qLearning = QLearning()
-episode = Episode(env, qLearning, 0.5)
+NUM_TRAIN_EPISODES = 50
+NUM_TEST_EPISODES = 100
+NUM_BATCHES = 10
+MAX_STEPS = 20
+TEST_EXPLOIT_RATE = 0.75
+MAX_PROCESSES = 8
 
-def onStepEnd():
-    """ Black plays a random (valid) move """
-    actions = env.getAllPossibleActions(Color.Black)
-    if actions:
-        env.execute(random.choice(actions))
+def trainExploitRate(batchNumber):
+    return 0.5 + (batchNumber / NUM_BATCHES)/2
 
+def trainEpisode(batchNumber):
+    env = Environment(BoardState(board.clone()))
+    episode = Episode(env, qLearning, trainExploitRate(batchNumber))
+    return episode.step(MAX_STEPS, onStepEnd=onStepEnd)
 
-steps = episode.step(100, onStepEnd=onStepEnd)
-print(f"Board state after {steps} steps:")
-print(board)
-print(f"End State: {env.isEndState()}")
-print(f"Black checkmated: {board.isCheckMated(Color.Black)}")
-print(f"Number of states: {len(qLearning.sas)}")
+def testEpisode():
+    env = Environment(BoardState(board.clone()))
+    episode = Episode(env, qLearning, TEST_EXPLOIT_RATE)
+    steps = episode.step(MAX_STEPS, onStepEnd=onStepEnd)
+    return (env.getState().isWinState(), steps, qLearning.getStateAction(env.getState()).getMaxReward())
+    
+rWins = []
+eRates = []
+nStates = []
+nSteps = []
+stateMaxRewards = []
 
-def dumpStateActions(qLearning:QLearning):
-    for (state, stateAction) in qLearning.sas.items():
-        print (state.board)
-        print (f"Max action: {stateAction.maxAction}")
-        for (action, value) in stateAction.actions.items():
-            print (f"Action {action.move} -> {value}")  
+USE_MULTITHREAD = False
 
-dumpStateActions(qLearning)
+for b in tqdm(range(NUM_BATCHES)):
+
+    if USE_MULTITHREAD:
+        with Pool(processes=MAX_PROCESSES) as pool:
+            pool.map(trainEpisode, range(NUM_TRAIN_EPISODES))
+    else:
+        for i in range(NUM_TRAIN_EPISODES):
+            trainEpisode(i)
+
+    wins = 0
+    totalSteps = 0
+    stateMaxReward = 0
+    for i in range(NUM_TEST_EPISODES):
+        (isWin, steps, maxReward) = testEpisode()
+        stateMaxReward = stateMaxReward + maxReward
+        totalSteps = totalSteps + steps
+        if isWin:
+            wins = wins + 1
+
+    totalStates = len(qLearning.sas)
+    stateMaxRewards.append(stateMaxReward / NUM_TEST_EPISODES)
+    rWins.append(wins)
+    eRates.append(trainExploitRate(b))
+    nStates.append(totalStates)
+    nSteps.append(totalSteps / NUM_TEST_EPISODES)

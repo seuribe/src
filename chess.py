@@ -1,8 +1,8 @@
-from typing import List
+from typing import List, Dict
 from enum import Enum
 from dataclasses import dataclass
 
-EMPTY  = 0
+EMPTY  = None
 
 class Color(Enum):
     White = 0
@@ -52,21 +52,38 @@ class BoardPiece:
     def rookMoveFunctions(self):
         return [lambda x:x.left(), lambda x:x.right(), lambda x:x.above(), lambda x:x.below()]
 
+    def __hash__(self):
+        return hash((self.piece, self.color, self.pos))
+    
+    def __eq__(self, other):
+        return (self.piece, self.color, self.pos) == (other.piece, other.color, other.pos)
+
 @dataclass
 class Move:
     orig:Position
     dest:Position
+    def __hash__(self):
+        return hash((hash(self.orig), hash(self.dest)))
 
 class Board:
     pieces: List[BoardPiece] = []
+    pMoves: Dict[BoardPiece, List[Move]] = {}
+
 
     def __init__(self, size:int):
         self.size = size
         self.clear() # initialize board and pieces
+        self.updateOnChange = True
+
+    def remakePossibleMoves(self):
+        self.pMoves = {}
+        for p in self.pieces:
+            self.possibleMoves(p)
 
     def clear(self):
         self.board = [[EMPTY] * self.size for _ in range(self.size)]
         self.pieces = []
+        self.pMoves = {}
 
     def get(self, pos:Position):
         return self.board[pos.row][pos.col]
@@ -82,24 +99,39 @@ class Board:
         self.board[piece.pos.row][piece.pos.col] = piece
         # keep pieces always sorted
         self.pieces.sort(key=lambda p:p.piece.value * 1000 + p.color.value * 100 + p.pos.row * 10 + p.pos.col)
+        self.onBoardChanged()
+
+    def onBoardChanged(self):
+        if self.updateOnChange:
+            self.remakePossibleMoves()
 
     def isEmpty(self, pos:Position):
-        return self.get(pos) == EMPTY
+        return not self.get(pos)
 
     def remove(self, pos:Position):
         piece = self.get(pos)
         if piece:
-            self.pieces.remove(piece)
-            self.board[piece.pos.row][piece.pos.col] = EMPTY
+            self.removePiece(piece)
+
+    def removePiece(self, piece:BoardPiece):
+        self.pieces.remove(piece)
+        self.board[piece.pos.row][piece.pos.col] = EMPTY
+        if piece in self.pMoves:
+            del self.pMoves[piece]
+        self.onBoardChanged()
 
     def move(self, move:Move):
         """ Will remove any piece at the destination, WITHOUT checking if the move or eat is valid """
         bPiece = self.get(move.orig)
         if not bPiece:
             return
+
+        self.updateOnChange = False
         self.remove(move.orig)
         self.remove(move.dest)
         self.add(bPiece.piece, bPiece.color, move.dest)
+        self.updateOnChange = True
+        self.onBoardChanged()
 
 
     def getKing(self, color:Color):
@@ -120,7 +152,7 @@ class Board:
         for row in self.board:
             str = str + "|"
             for piece in row:
-                index = 0 if piece == 0 else piece.piece.value + piece.color.value
+                index = 0 if not piece else piece.piece.value + piece.color.value
                 str = str + PIECES[index]
             str = str + "|\n"
         str = str + "+----+"
@@ -134,7 +166,7 @@ class Board:
 
     def validEat(self, pos:Position, piece:BoardPiece):
         """ Is there a piece at 'pos', that 'piece' can eat? """
-        return self.validPos(pos) and not self.isEmpty(pos) and self.get(pos).color != piece.color and self.get(pos).piece != Piece.King
+        return self.validPos(pos) and not self.isEmpty(pos) and self.get(pos).color != piece.color #and self.get(pos).piece != Piece.King
 
 
     def hasPiece(self, pos:Position):
@@ -154,6 +186,15 @@ class Board:
 
     def isThreatened(self, pos:Position, color:Color):
         """ Is this position threatened by a piece of color 'color'? """
+
+        for (piece, moves) in self.pMoves.items():
+            if piece.color is color:
+                for m in moves:
+                    if m.dest == pos:
+                        return True
+
+        return False
+
 
         # Check pawns
         pawnPreviousRow = pos.below() if color == Color.White else pos.above()
@@ -182,13 +223,17 @@ class Board:
 
         return False
         
-
-
+   
     def possibleMoves(self, piece:BoardPiece):
         """ Where could the piece at 'pos' move to?
             In the case of a king, it will only return squares
             that are not threatened by the other color
             """
+        if piece in self.pMoves:
+            return self.pMoves[piece]
+
+        prevUpdateOnChange = self.updateOnChange
+        self.updateOnChange = False
         moves = []
         match piece.piece:
             case Piece.Pawn: # Pawn
@@ -225,7 +270,9 @@ class Board:
                 self.addPiece(piece)
 
         # Create proper Move from the resulting posinates
-        return list(map(lambda m: Move(piece.pos, m), moves))
+        self.pMoves[piece] = list(map(lambda m: Move(piece.pos, m), moves))
+        self.updateOnChange = prevUpdateOnChange
+        return self.pMoves[piece]
 
 
     def allPiecesFrom(self, color:Color) -> List[BoardPiece]:
@@ -263,10 +310,14 @@ class Board:
     def clone(self):
         """ Return a clone of the board """
         newBoard = Board(self.size)
+
+        newBoard.updateOnChange = False
         for piece in self.pieces:
             np = BoardPiece(piece.piece, piece.color, piece.pos)
             newBoard.addPiece(np)
 
+        newBoard.updateOnChange = True
+        newBoard.onBoardChanged()
         return newBoard
 
 

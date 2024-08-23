@@ -1,169 +1,134 @@
+from typing import List, Dict
+from enum import Enum
+from dataclasses import dataclass
 import random
-from chess import *
-
-
-def encodeMove(move:Move):
-    return move.orig.row  + move.orig.col << 3 + move.dest.row << 6 + move.dest.col << 12
-
-def encodePiece(piece:BoardPiece):
-    return piece.piece.value + piece.color.value + piece.pos.row << 16 + piece.pos.col << 24
-
-def encodeBoard(board:Board):
-    data = []
-    for piece in board.pieces:
-        data.append(encodePiece(piece))
-    return data
-
-
-@dataclass
-class State:
-    board:Board
-    encoding:List[int]
-    def __init__(self, board:Board):
-        self.board = board.clone()
-        self.encoding = encodeBoard(self.board)
-
-    def __hash__(self):
-        value = 7
-        for e in self.encoding:
-            value = (value * 31) + e
-        return value
 
 
 @dataclass
 class Action:
-    move:Move
-    encoding:int
-    def __init__(self, move:Move):
-        self.move = move
-        self.encoding = encodeMove(self.move)
+    pass
 
-    def __hash__(self):
-        return hash((self.move.orig, self.move.dest))
+
+class EndState(Enum):
+    Active = 0
+    Win = 1
+    Lose = 2
+    Tie = 3
+
+
+@dataclass
+class State:
+    pass
 
 
 class Environment:
-    board:Board
-    def __init__(self, board, encodeFunc = lambda x:x):
-        self.board = board
-        self.encodeFunc = encodeFunc
+    state:State
 
-    def isEndState(self):
-        """ It's an end state if:
-            * White wins (black king is check-mated)
-            * White loses (has no more pieces left)
-        """
-        return self.board.isCheckMated(Color.Black) or not self.getAllPossibleActions(Color.White)
+    def __init__(self, state:State):
+        self.state = state
 
-    def getAllPossibleActions(self, color:Color = Color.White) -> List[Action]:
-        allMoves = self.board.getAllMovesFor(color)
-        # map each move to an action
-        return list(map(lambda m:Action(move=m), allMoves))
+    def isEndState(self) -> bool:
+        return self.isWinState() or self.isTieState() or self.isLoseState()
 
-    def execute(self, action:Action):
-        self.board.move(action.move)
-        if self.board.isCheckMated(Color.Black):
-            return 1
-        elif not self.getAllPossibleActions(Color.White):
-            return -1
-        return 0
-    
+    def isWinState(self) -> bool:
+        return False
+
+    def isLoseState(self) -> bool:
+        return False
+
+    def isTieState(self) -> bool:
+        return False
+
+    def execute(self, action:Action) -> int:
+        self.state = self.getNewState(action)
+        return self.getReward()
+
+    def getNewState(self, action:Action) -> State:
+        return self.state
+
+    def getReward(self):
+        return 100 if self.isWinState() else -1
+
     def getState(self) -> State:
-        return self.encode(self.board)
-    
-    def encode(self, board:Board):
-        return State(board)   
+        return self.state
 
-class QLearning:
+    def getAllPossibleActions(self) -> List[Action]:
+        return []
 
-    class StateAction:
+
+class QMemory:
+    class ActionRewards:
         maxAction:Action
         def __init__(self):
             self.actions = {}
             self.maxAction = None
 
         def getExpectedReward(self, action:Action):
-            return self.actions.get(action) or 0
-        
+            return self.actions.get(action, 0)
+
         def getMaxReward(self):
             return 0 if self.maxAction is None else self.actions[self.maxAction]
-        
+
         def setExpectedReward(self, action:Action, reward):
             self.actions[action] = reward
             if not self.maxAction or reward > self.actions[self.maxAction]:
                 self.maxAction = action
 
+    sar: Dict[State, ActionRewards]
+
     def __init__(self, learningRate = 0.9, discountRate = 0.5):
         self.learningRate = learningRate
         self.discountRate = discountRate
-        self.sas = {}
+        self.sar = {}
 
     def getBestAction(self, state:State) -> Action:
-        sa = self.sas.get(state)
-        return None if sa is None else sa.maxAction
+        return self.getActionRewards(state).maxAction
 
-    def getStateAction(self, state:State) -> StateAction:
-        sa = self.sas.get(state)
-        if sa is None:
-            sa = self.StateAction()
-            self.sas[state] = sa
+    def getActionRewards(self, state:State) -> ActionRewards:
+        if state in self.sar:
+            return self.sar[state]
 
-        return sa
+        ars = self.ActionRewards()
+        self.sar[state] = ars
+
+        return ars
+
+    def getMaxReward(self, state:State):
+        return self.getActionRewards(state).getMaxReward()
 
     def update(self, oldState:State, action:Action, newState:State, reward):
-        oldSA = self.getStateAction(oldState)
+        oldSA = self.getActionRewards(oldState)
         currentValue = oldSA.getExpectedReward(action)
-        newSA = self.getStateAction(newState)
+        newSA = self.getActionRewards(newState)
         maxExpectedNew = newSA.getMaxReward()
         newExpectedReward = currentValue + self.learningRate * (reward + self.discountRate * maxExpectedNew - currentValue)
         oldSA.setExpectedReward(action, newExpectedReward)
 
 
 class Policy:
-    qLearning:QLearning
-    env:Environment
+    qMemory:QMemory
 
-    def __init__(self, env, qLearning, exploitRate):
-        self.env = env
-        self.qLearning = qLearning
-        self.exploitRate = exploitRate
-    
-    def pickAction(self) -> Action:
-        if random.random() < self.exploitRate:
-            bestAction = self.qLearning.getBestAction(self.env.getState())
+    def __init__(self, learningRate = 0.9, discountRate = 0.5):
+        self.qMemory = QMemory(learningRate, discountRate)
+
+    def pickAction(self, env:Environment, exploitRate) -> Action:
+        if random.random() <= exploitRate:
+            st = env.getState()
+            bestAction = self.qMemory.getBestAction(st)
             if bestAction:
                 return bestAction
 
-        return self.randomAction()
+        return self.randomAction(env)
 
-    def randomAction(self) -> Action:
-        actions = list(self.env.getAllPossibleActions())
+    def randomAction(self, env:Environment) -> Action:
+        actions = list(env.getAllPossibleActions())
         return random.choice(actions) if actions else None
 
+    def update(self, oldState:State, action:Action, newState:State, reward):
+        self.qMemory.update(oldState, action, newState, reward)
 
-class Episode:
-    env: Environment
-    policy: Policy
-    qLearning: QLearning
+    def getMaxReward(self, state):
+        return self.qMemory.getMaxReward(state)
 
-    def __init__(self, env:Environment, qLearning:QLearning, exploitRate):
-        self.env = env
-        self.qLearning = qLearning
-        self.policy = Policy(env, qLearning, exploitRate)
-
-    def step(self, maxSteps = 100, onStepStart = lambda:None, onStepEnd = lambda:None):
-        steps = 0
-        while steps < maxSteps and not self.env.isEndState():
-            steps = steps + 1
-            onStepStart()
-            oldState = self.env.getState()
-            action = self.policy.pickAction()
-            if not action:
-                break
-            reward = self.env.execute(action)
-            newState = self.env.getState()
-            self.qLearning.update(oldState, action, newState, reward)
-            onStepEnd()
-
-        return steps
-        
+    def numKnownStates(self):
+        return len(self.qMemory.sar)
