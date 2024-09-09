@@ -22,6 +22,7 @@ class Direction(Enum):
 
 @dataclass
 class Position:
+    """ A position in the grid. x is the column and y the row """
     x:int
     y:int
 
@@ -39,6 +40,7 @@ class Position:
         return hash((self.x, self.y))
 
 class Grid:
+    """ The maze is represented by this grid, itself containing a two-dimensional array of ints """
     EMPTY = 0
     WALL = 1
     START = 2
@@ -49,12 +51,15 @@ class Grid:
         self.gridData = deepcopy(data)
 
     def isWall(self, pos:Position):
+        """ is there a wall a this position? """
         return self.gridData[pos.y][pos.x] is self.WALL
 
     def get(self, pos:Position):
+        """ what is there at this position? """
         return self.gridData[pos.y][pos.x]
 
     def validPos(self, pos:Position):
+        """ is the position valid? we don't want to walk over walls or outside of the maze """
         return 0 <= pos.y < len(self.gridData) and 0 <= pos.x < len(self.gridData[pos.y]) and not self.isWall(pos)
 
     def findFirst(self, key:int) -> Position:
