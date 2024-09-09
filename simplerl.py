@@ -80,7 +80,7 @@ class GridAction(Action):
 
     def __hash__(self):
         return hash(self.dir)
-    
+
     def __str__(self):
         return f"{self.dir}"
 
@@ -90,13 +90,13 @@ class GridAction(Action):
 
 @dataclass
 class GridState(State):
-    playerPos:Position
+    pos:Position
 
-    def __init__(self, playerPos:Position):
-        self.playerPos = playerPos
+    def __init__(self, pos:Position):
+        self.pos = pos
 
     def __hash__(self):
-        return hash(self.playerPos)
+        return hash(self.pos)
 
 
 class GridEnvironment(Environment):
