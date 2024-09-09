@@ -104,7 +104,7 @@ class Policy:
     def __init__(self, learningRate = 0.9, discountRate = 0.5):
         self.qMemory = QMemory(learningRate, discountRate)
 
-    def pickAction(self, env:Environment, exploitRate) -> Action:
+    def pickAction(self, env:Environment, exploitRate = 1) -> Action:
         if random.random() <= exploitRate:
             st = env.getState()
             bestAction = self.qMemory.getBestAction(st)
