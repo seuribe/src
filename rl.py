@@ -9,13 +9,6 @@ class Action:
     pass
 
 
-class EndState(Enum):
-    Active = 0
-    Win = 1
-    Lose = 2
-    Tie = 3
-
-
 @dataclass
 class State:
     pass
